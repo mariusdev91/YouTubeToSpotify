@@ -1,3 +1,87 @@
+body {
+    /* background-image: url("/style/11915519-illustration-of-music-background-in-doodle-style.png"); */
+    background-color:darkgrey;
+}
+
 #content, #signIn, #signOut {
     display: none;
+}
+
+#buttonsRows {
+    display: flex;
+    flex-direction: row;
+    justify-content: flex-start;
+    width: fit-content;
+}
+
+.col-1 {
+    width: fit-content;
+}
+
+.col-2 {
+    width: fit-content;
+}
+
+#signIn:hover {
+    cursor: pointer;
+}
+
+span.label {
+    font-family: serif;
+    font-weight: normal;
+}
+
+span.icon {
+    background: url('/style/beauty_google.png') transparent 5px 50% no-repeat;
+    display: inline-block;
+    vertical-align: middle;
+    width: 30px;
+    height: 23px;
+}
+
+span.spotifyIcon {
+    background: url('/style/spotify_icon.png') transparent 5px 50% no-repeat;
+    display: inline-block;
+    vertical-align: middle;
+    width: 30px;
+    height: 23px;
+}
+
+span.buttonText, span.createPlaylistText {
+    width: auto;
+    display: inline-block;
+    vertical-align: middle;
+    padding-left: 15px;
+    padding-right: 15px;
+    font-size: 14px;
+    font-weight: bold;
+    font-family: 'Roboto', sans-serif;
+    color: black;
+}
+
+span.createPlaylist{ 
+    background: url('/style/create_playlist.png') transparent 5px 50% no-repeat;
+    display: inline-block;
+    vertical-align: middle;
+    width: 25px;
+    height: 23px;
+}
+
+span.createPlaylistText {
+    width: auto;
+    display: inline-block;
+    vertical-align: middle;
+    padding-left: 20px;
+    padding-right: 20px;
+    font-size: 14px;
+    font-weight: bold;
+    font-family: 'Roboto', sans-serif;
+}
+
+#searchSpotify:hover {
+    cursor: pointer;
+}
+
+#basic-url{
+    width: 50%;
 }
