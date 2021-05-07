@@ -38,7 +38,7 @@ function updateSigninStatus(isSignedIn) {
         authorizeButton.style.display = 'none';
         signOutButton.style.display = 'block';
         const loggedInMessage = document.getElementById('loggedIn');
-        if (access_token != null) {
+        if (access_token !== null) {
             loggedInMessage.textContent = 'You are connected with Google and Spotify!';
         } else {
             loggedInMessage.textContent = 'You are connected to Google, but not to Spotify. Please connect to Spotify also!';
@@ -47,9 +47,6 @@ function updateSigninStatus(isSignedIn) {
     } else {
         authorizeButton.style.display = 'block';
         signOutButton.style.display = 'none';
-        content.style.display = 'none';
-        const message = document.getElementById('googleMessage');
-        message.textContent = 'You will be able to paste your URL below, after to log in with Google.';
     }
 }
 
@@ -135,6 +132,8 @@ const AUTHORIZE = 'https://accounts.spotify.com/authorize';
 const TOKEN = 'https://accounts.spotify.com/api/token';
 let refresh_token = null;
 let access_token = null;
+let currentPlaylist = '';
+var radioButtons = [];
 
 //get authorization from Spotify 
 function authorizeUser() {
@@ -142,7 +141,7 @@ function authorizeUser() {
     url += '?client_id=' + spotifyClientID;
     url += '&response_type=code';
     url += '&redirect_uri=' + encodeURI(spotifyRedirectURI);
-    url += '&scope=playlist-modify-private playlist-read-private user-read-email user-read-private';
+    url += '&scope=playlist-modify-private playlist-read-private user-read-email user-read-private user-modify-playback-state user-read-playback-state';
     
     //shows Spotify's authorization screen
     window.location.href = url; 
@@ -152,12 +151,14 @@ function authorizeUser() {
 function onPageLoad() {
     if (window.location.search.length > 0) {
         handleRedirect();
-    }
-    if(access_token != null) {
-        document.getElementById('createPlaylist').disabled = false;
     } else {
-        document.getElementById('createPlaylist').disabled = true;
+        if(access_token == null) {
+            document.getElementById('createPlaylist').disabled = true;
+        } else {
+            document.getElementById('createPlaylist').disabled = false;
+        }
     }
+    refreshRadioButtons();
 }
 
 //function that handle's the redirect
@@ -213,7 +214,7 @@ async function callAuthorizationAPI(body) {
 
 //function that handle's the POST response
 async function handleSpotifyAuthorizationResponse(response) {
-    if (response.status == 200) {
+    if (response.status === 200) {
         let data = await response.json();
         console.log(data);
         if (data.access_token != undefined) {
@@ -222,7 +223,7 @@ async function handleSpotifyAuthorizationResponse(response) {
         }
         if (data.refresh_token != undefined) {
             refresh_token = data.refresh_token;
-            localStorage.setItem('refresh_torken', refresh_token);
+            localStorage.setItem('refresh_token', refresh_token);
         }
         onPageLoad();
     } else {
@@ -397,12 +398,349 @@ function handleSpotifySearchResult(spotifyResult, currentArtist) {
     return trackUri;
 }
 
+//get current device ID
+async function getUsersDevices(){
+    let callUrl = "https://api.spotify.com/v1/me/player/devices";
+    const response = await fetch(callUrl, {
+        method: "GET",
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + access_token,
+        }
+    });
+    handleDeviceCall(response);
+}
+
+//handle devices reponse 
+async function handleDeviceCall(response){
+    if(response.status === 200) {
+        removeElements('devices');
+        let devices = await response.json();
+        console.log(devices);
+        devices.devices.forEach(item => addDevices(item));
+    } else if(response.text === 401) {
+        refreshAccessToken();
+    } else {
+        alert(response.resposneText);
+    }
+}
+
+//function that adds the devices in the list
+async function addDevices(item){
+    let node = document.createElement('option');
+    node.value = item.id;
+    node.innerHTML = item.name;
+    document.getElementById('devices').appendChild(node);
+}
+
+//get user's playlists
+async function getUsersPlaylists() {
+    const playlistApi = "https://api.spotify.com/v1/me/playlists";
+    let response = await fetch(playlistApi, {
+        method: "GET",
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + access_token,
+        }
+    });
+    handlePlaylistGet(response);
+}
+
+//handle playlist call
+async function handlePlaylistGet(response) {
+    if (response.status === 200) {
+        let responseData = await response.json();
+        removeElements('playlists');
+        responseData.items.forEach(item => addPlaylists(item)); 
+    } else if (response.status === 401) {
+        refreshAccessToken();
+    } else {
+        console.log(response.statusText);
+    }
+}
+
+//function that adds the name of every playlist in the html list
+function addPlaylists(item) {
+    let node = document.createElement('option');
+    node.value = item.id;
+    node.innerHTML = item.name + " (" + item.tracks.total + ")";
+    document.getElementById('playlists').appendChild(node);
+}
+
+//function that clears the list
+function removeElements(elementId) {
+    let node = document.getElementById(elementId);
+    while (node.firstChild) {
+        node.removeChild(node.firstChild);
+    }
+}
+
+//play function for player
+async function play() {
+    let playlist_Id = document.getElementById('playlists').value;
+    let trackIndex = document.getElementById('tracks').value;
+    let callBody = {};
+    callBody.context_uri = 'spotify:playlist:' + playlist_Id;
+    callBody.offset = {};
+    callBody.offset.position = trackIndex.length > 0 ? Number(trackIndex) : 0;
+    callBody.offset.position_ms = 0;
+
+    let callUrl = `https://api.spotify.com/v1/me/player/play?device_id=${getSelectedDevice()}`;
+
+    let response = await fetch (callUrl, {
+        method: "PUT",
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + access_token,
+        },
+        body: JSON.stringify(callBody)
+    });
+    console.log(response);
+    handleSpotifyFetch(response);
+}
+
+//shuffle option for player
+async function shuffle() {
+    let callUrl = `https://api.spotify.com/v1/me/player/shuffle?state=true&device_id=${getSelectedDevice()}`;
+    let response = await fetch(callUrl, {
+        method: "PUT",
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + access_token,
+        }
+    });
+    handleSpotifyFetch(response);
+    play();
+}
+
+//pause option
+async function pause() {
+    let callUrl = `https://api.spotify.com/v1/me/player/pause?device_id=${getSelectedDevice()}`;
+    let response = await fetch(callUrl, {
+        method: "PUT",
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + access_token,
+        }
+    });
+    handleSpotifyFetch(response);
+}
+
+//next option
+async function next() {
+    let callUrl = `https://api.spotify.com/v1/me/player/next?device_id=${getSelectedDevice()}`;
+    let response = await fetch (callUrl, {
+        method: "POST",
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + access_token,
+        }
+    })
+    handleSpotifyFetch(response);
+}
+
+//previous option
+async function previous() {
+    let callUrl = `https://api.spotify.com/v1/me/player/previous?device_id=${getSelectedDevice()}`;
+    let response = await fetch (callUrl, {
+        method: "POST",
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + access_token,
+        }
+    })
+    handleSpotifyFetch(response);
+}
+
+//function transfer track to device
+async function transfer(){
+    let body = {};
+    body.device_ids = [];
+    body.device_ids.push(getSelectedDevice());
+
+    const callUrl = "https://api.spotify.com/v1/me/player";
+    const response = await fetch (callUrl, {
+        method: "PUT",
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + access_token,
+        },
+        body: JSON.stringify(body)
+    })
+    handleSpotifyFetch(response);
+}
+
+//get selected device
+function getSelectedDevice() {
+    console.log(document.getElementById('devices').value);
+    return document.getElementById('devices').value;
+}
+
+//handle API fetch
+async function handleSpotifyFetch(response) {
+    if(response.status === 200) {
+        console.log(reponse);
+        setTimeout(currentlyPlaying, 1000);
+    } else if(response.status === 204) {
+        setTimeout(currentlyPlaying, 1000);
+    } else if(response.status === 401){
+        refreshAccessToken();
+    } else {
+        alert(response.resposneText);
+    }
+}
+
+//get tracks from the selected playlist
+async function getTrackFromSelectedPlaylist() {
+    let playlistId = document.getElementById('playlists').value;
+    if (playlistId.length > 0) {
+        let callUrl = `https://api.spotify.com/v1/playlists/${playlistId}/tracks`;
+        console.log(playlistId);
+        let response = await fetch (callUrl, {
+            method: "GET",
+            headers: {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json',
+                'Authorization': 'Bearer ' + access_token,
+            }
+        });
+        handleTrackResponse(response);
+    }
+}
+
+//handle reponse from get track
+async function handleTrackResponse(response){
+    if(response.status === 200) {
+        let getResponse = await response.json();
+        removeElements('tracks');
+        getResponse.items.forEach((item, index) => addTrack(item, index));
+    } else if (response.status === 401){
+        refreshAccessToken();
+    } else {
+        alert(response.reponseText);
+    }
+}
+
+//function that adds the tracks from the playlist
+async function addTrack(item, index) {
+    let node = document.createElement('option');
+    node.value = index;
+    node.innerHTML = item.track.name + " (" + item.track.artists[0].name + ")";
+    document.getElementById('tracks').appendChild(node);
+}
+
+//function that handles the currently playing section
+async function currentlyPlaying(){
+    let callUrl = "https://api.spotify.com/v1/me/player/currently-playing?market=US";
+    let response = await fetch(callUrl, {
+        method: "GET",
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + access_token,
+        }
+    })
+    handleCurrentlyPlaying(response);
+}
+
+//handle currently playing response
+async function handleCurrentlyPlaying(response){
+    if(response.status === 200) {
+        let responseData = await response.json();
+        console.log(responseData);
+        if (responseData.item != null) {
+            document.getElementById('albumImage').src = responseData.item.album.images[0].url;
+            document.getElementById('albumImage').style.height = '150px';
+            document.getElementById('albumImage').style.width = '150px';
+            document.getElementById('trackTitle').innerHTML = responseData.item.name;
+            document.getElementById('trackArtist').innerHTML = responseData.item.artists[0].name;
+        }
+
+        if (responseData.device != null) {
+            currentDevice = responseData.data.id;
+            document.getElementById('devices').value = curretDevice;
+        }
+
+        if (responseData.context != null) {
+            currentPlaylist = responseData.context.uri;
+            currentPlaylist = currentPlaylist.substring(currentPlaylist.lastIndexOf(":") + 1, currentPlaylist.length);
+            document.getElementById('playlists').value = currentPlaylist;
+        }
+    } else if(response.status === 401) {
+        refreshAccessToken();
+    } else {
+        alert(response.reponseText);
+    }
+}
+
+//add buttons to the players
+function saveNewRadioButton (){
+    let item = {};
+    item.deviceId = getSelectedDevice();
+    item.playlistId = document.getElementById('playlists').value;
+    radioButtons.push(item);
+    localStorage.setItem('radio_button', JSON.stringify(radioButtons));
+    refreshRadioButtons();
+}
+
+//refresh radio button
+function refreshRadioButtons(){
+    let data = localStorage.getItem(radioButtons);
+    if (data != null) {
+        radioButtons = JSON.parse(data);
+        if (Array.isArray(radioButtons)) {
+            removeElements('radioButtons');
+            radioButtons.forEach((item, index) => addRadioButton(item, index));            
+        }
+    }
+}
+
+//do something when clicking a button
+async function onRadioButton (deviceId, playlistId) {
+    let body = {};
+    body.context_uri = "spotify:playlist" + playlistId;
+    body.offset = {};
+    body.offset.position = 0;
+    body.offset.position_ms = 0;
+
+    let callUrl = `https://api.spotify.com/v1/me/player/play?device_id=${deviceId}`;
+    const response = await fetch(callUrl, {
+        method:"PUT",
+        headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + access_token,
+        },
+        body: JSON.stringify(body)
+    })
+    handleSpotifyFetch(response);
+}
+
+//add radio button
+// async function addRadioButton(item, index) {
+//     let node = document.createElement('option');
+//     node.className = 'btn btn-primary m-2';
+//     node.innerHTML = index;
+//     node.onclick = function () {
+//         onRadioButton(item.deviceId, item.playlistId);
+//     }
+//     document.getElementById("radioButtons").appendChild(node);
+// }
+
 //function that starts when the page loads
 function init() {
     const divRow = document.getElementById('buttonRows');
 
     const spotifyButton = document.getElementById('spotifyAuth');
-    spotifyButton.title = "Please press the button to connect to Spotify."
+    spotifyButton.title = "Press the button to connect to Spotify."
     spotifyButton.addEventListener('click', (e) => {
         e.preventDefault();
     })
@@ -420,6 +758,20 @@ function init() {
     divCol5.style.width = "fit-content";
     divCol5.appendChild(searchSpotifyButton);
     divRow.append(divCol5);
+
+    document.getElementById('refreshDevices').addEventListener('click', getUsersDevices)
+    document.getElementById('refreshPlaylist').addEventListener('click', getUsersPlaylists);
+    document.getElementById('getTracks').addEventListener('click', getTrackFromSelectedPlaylist);
+
+    document.getElementById('play').addEventListener('click', play);
+    document.getElementById('previous').addEventListener('click', previous);
+    document.getElementById('shuffle').addEventListener('click', shuffle);
+    document.getElementById('pause').addEventListener('click', pause);
+    document.getElementById('next').addEventListener('click', next);
+
+    document.getElementById('transfer').addEventListener('click', transfer);
+    document.getElementById('currentlyPlaying').addEventListener('click', currentlyPlaying);
+
 }
 
 init();

@@ -1,6 +1,8 @@
 body {
     /* background-image: url("/style/11915519-illustration-of-music-background-in-doodle-style.png"); */
-    background-color:darkgrey;
+    background-color:lightblue;
+    height: fit-content;
+    font-family: 'Nanum Gothic', sans-serif;
 }
 
 #content, #signIn, #signOut {
@@ -84,4 +86,61 @@ span.createPlaylistText {
 
 #basic-url{
     width: 50%;
+}
+
+div.container {
+    max-width: 1000px;    
+}
+
+#bottom {
+    position: relative;
+    bottom: 0%;
+    width: 100%;
+}
+
+#spotifyMusic {
+    text-align: justify left;
+}
+
+#playing {
+    padding-left: 0px;
+    padding-right: 0px;
+}
+
+.footer {
+    justify-content: center;
+    display: flex;
+    /* padding: 30px; */
+    width: 100%;
+}
+
+/* #buttonsRow {
+    justify-content: center;
+    width: fit-content; 
+} */
+
+#previous, #play, #pause, #next, #shuffle {
+    margin-left: 5px;
+    margin-right: 5px;
+}
+
+ul {
+    display: flex;
+}
+
+li{
+    list-style-type: none;
+    padding: 20px
+}
+
+.nav {
+    display: flex;
+    justify-content: center;
+    /* background-color: rgb(8, 8, 146); */
+}
+
+a {
+    text-decoration: none;
+    color: black;
+    font-size: 20px
 }
